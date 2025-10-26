@@ -428,6 +428,7 @@
                         <thead>
                             <tr>
                                 <th>品質</th>
+                                <th>次數</th>
                                 <th>x2 相同</th>
                                 <th>x3 相同</th>
                                 <th>x4 相同</th>
@@ -437,6 +438,7 @@
                         <tbody>
                             <!-- S (5 洞) --><tr>
                                 <td class="quality-s">S</td>
+                                <td id="s-attempts">0</td>
                                 <td id="s-set-2">0</td>
                                 <td id="s-set-3">0</td>
                                 <td id="s-set-4">0</td>
@@ -444,6 +446,7 @@
                             </tr>
                             <!-- A (4 洞) --><tr>
                                 <td class="quality-a">A</td>
+                                <td id="a-attempts">0</td>
                                 <td id="a-set-2">0</td>
                                 <td id="a-set-3">0</td>
                                 <td id="a-set-4">0</td>
@@ -451,6 +454,7 @@
                             </tr>
                             <!-- B (3 洞) --><tr>
                                 <td class="quality-b">B</td>
+                                <td id="b-attempts">0</td>
                                 <td id="b-set-2">0</td>
                                 <td id="b-set-3">0</td>
                                 <td class="impossible">—</td>
@@ -458,6 +462,7 @@
                             </tr>
                             <!-- C (2 洞) --><tr>
                                 <td class="quality-c">C</td>
+                                <td id="c-attempts">0</td>
                                 <td id="c-set-2">0</td>
                                 <td class="impossible">—</td>
                                 <td class="impossible">—</td>
@@ -535,10 +540,10 @@
 
         // NEW: 鑄魂紀錄 (倉儲) 變數 (品質統計)
         let qualityStatisticsStock = {
-            S: { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
-            A: { setOf2: 0, setOf3: 0, setOf4: 0 },
-            B: { setOf2: 0, setOf3: 0 },
-            C: { setOf2: 0 }
+            S: { attempts: 0, setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
+            A: { attempts: 0, setOf2: 0, setOf3: 0, setOf4: 0 },
+            B: { attempts: 0, setOf2: 0, setOf3: 0 },
+            C: { attempts: 0, setOf2: 0 }
         };
 
         // NEW: 鑄魂紀錄 (倉儲) 變數 (套裝統計)
@@ -568,15 +573,19 @@
         const tabPanelType = document.getElementById('tab-panel-type');
 
         // NEW: 品質統計 (倉儲) 元素
+        const sAttemptsEl = document.getElementById('s-attempts');
         const sSet2El = document.getElementById('s-set-2');
         const sSet3El = document.getElementById('s-set-3');
         const sSet4El = document.getElementById('s-set-4');
         const sSet5El = document.getElementById('s-set-5');
+        const aAttemptsEl = document.getElementById('a-attempts');
         const aSet2El = document.getElementById('a-set-2');
         const aSet3El = document.getElementById('a-set-3');
         const aSet4El = document.getElementById('a-set-4');
+        const bAttemptsEl = document.getElementById('b-attempts');
         const bSet2El = document.getElementById('b-set-2');
         const bSet3El = document.getElementById('b-set-3');
+        const cAttemptsEl = document.getElementById('c-attempts');
         const cSet2El = document.getElementById('c-set-2');
 
         // NEW: 套裝統計 (倉儲) 元素
@@ -767,18 +776,22 @@
          */
         function updateQualityStatisticsStockUI() {
             // S (5 洞)
+            sAttemptsEl.textContent = qualityStatisticsStock.S.attempts.toLocaleString();
             sSet2El.textContent = qualityStatisticsStock.S.setOf2.toLocaleString();
             sSet3El.textContent = qualityStatisticsStock.S.setOf3.toLocaleString();
             sSet4El.textContent = qualityStatisticsStock.S.setOf4.toLocaleString();
             sSet5El.textContent = qualityStatisticsStock.S.setOf5.toLocaleString();
             // A (4 洞)
+            aAttemptsEl.textContent = qualityStatisticsStock.A.attempts.toLocaleString();
             aSet2El.textContent = qualityStatisticsStock.A.setOf2.toLocaleString();
             aSet3El.textContent = qualityStatisticsStock.A.setOf3.toLocaleString();
             aSet4El.textContent = qualityStatisticsStock.A.setOf4.toLocaleString();
             // B (3 洞)
+            bAttemptsEl.textContent = qualityStatisticsStock.B.attempts.toLocaleString();
             bSet2El.textContent = qualityStatisticsStock.B.setOf2.toLocaleString();
             bSet3El.textContent = qualityStatisticsStock.B.setOf3.toLocaleString();
             // C (2 洞)
+            cAttemptsEl.textContent = qualityStatisticsStock.C.attempts.toLocaleString();
             cSet2El.textContent = qualityStatisticsStock.C.setOf2.toLocaleString();
         }
 
@@ -843,16 +856,22 @@
             const { dominantType, count } = analyzeResults(results);
 
             // 3. NEW: 更新兩種鑄魂紀錄
+            const qualityKey = quality; // 'S', 'A', 'B', 'C'
+
+            // 3a. 累加品質次數
+            if (qualityStatisticsStock[qualityKey]) {
+                qualityStatisticsStock[qualityKey].attempts++;
+            }
+
             if (count >= 2) {
-                const qualityKey = quality; // 'S', 'A', 'B', 'C'
                 const setKey = `setOf${count}`; // 'setOf2', 'setOf3', etc.
                 
-                // 3a. 更新品質統計
+                // 3b. 更新品質統計 (相同洞數)
                 if (qualityStatisticsStock[qualityKey] && qualityStatisticsStock[qualityKey][setKey] !== undefined) {
                     qualityStatisticsStock[qualityKey][setKey]++;
                 }
                 
-                // 3b. 更新套裝統計
+                // 3c. 更新套裝統計
                 if (dominantType && typeStatisticsStock[dominantType] && typeStatisticsStock[dominantType][setKey] !== undefined) {
                     typeStatisticsStock[dominantType][setKey]++;
                 }
@@ -883,10 +902,10 @@
             
             // NEW: 重置品質統計
             qualityStatisticsStock = {
-                S: { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
-                A: { setOf2: 0, setOf3: 0, setOf4: 0 },
-                B: { setOf2: 0, setOf3: 0 },
-                C: { setOf2: 0 }
+                S: { attempts: 0, setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
+                A: { attempts: 0, setOf2: 0, setOf3: 0, setOf4: 0 },
+                B: { attempts: 0, setOf2: 0, setOf3: 0 },
+                C: { attempts: 0, setOf2: 0 }
             };
             
             // NEW: 重置套裝統計
@@ -959,5 +978,6 @@
     </script>
 </body>
 </html>
+
 
 
