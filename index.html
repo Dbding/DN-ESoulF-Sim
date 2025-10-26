@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紋章鑄魂模擬</title>
+    <!-- 引入 Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Inter 和 Noto Sans TC 字體 --><link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* * 全局設置 (字體, 背景, 手機友善):
+         * 1. 優先使用 Inter (英數), 接著使用 Noto Sans TC (繁中)。
+         * 2. 基礎字體大小設為 16px (1rem)，方便使用 rem 單位進行縮放。
+         * 3. 背景為灰白色 (#f3f4f6)。
+         * 4. text-base-content 提供主要文字顏色。
+         */
+        html {
+            font-size: 16px;
+        }
+        
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-800 */
+            overscroll-behavior: none; /* 防止 "下拉刷新" */
+            min-height: 100vh;
+        }
+
+        /* * 左上角作者資訊 (大字, 固定):
+         * NEW: 改為豎排文字。
+         */
+        .author-watermark {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            font-size: 1.25rem; /* 14px */
+            font-weight: 900; /* Noto Sans TC 900 */
+            color: #9ca3af; /* gray-400 */
+            opacity: 0.8;
+            z-index: 50;
+            
+            /* NEW: 豎排文字 */
+            writing-mode: vertical-rl; /* 豎排，從右到左 */
+            text-orientation: mixed-sideways; /* 字體方向混排，適用於中英混合 */
+            white-space: nowrap; /* 確保內容不換行 */
+            
+            /* 在小螢幕上稍微縮小 */
+            @media (max-width: 640px) {
+                font-size: 1rem;
+                top: 0.5rem;
+                left: 0.5rem;
+            }
+        }
+
+        /* * 浮水印 (斜的蘋果咬一口):
+         * NEW: 移到最上層 (z-100), 半透明 (opacity-10)。
+         */
+        body::after {
+            content: "蘋果咬一口";
+            position: fixed; /* 固定在視窗上 */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg); /* 居中並旋轉 */
+            font-size: 14vw; /* 根據視窗寬度縮放，非常大 */
+            font-weight: 900;
+            color: #9ca3af; /* gray-400 (原 gray-300) */
+            opacity: 0.1; /* NEW: 半透明 (原 0.8) */
+            z-index: 100; /* NEW: 最上層 (原 -1) */
+            pointer-events: none; /* 穿透點擊 */
+            white-space: nowrap; /* 不換行 */
+        }
+        
+        /* * 主要容器 (卡片):
+         * 採用更強烈的陰影 (光影效果)。
+         * 淺色背景 (#ffffff)
+         */
+        .main-card {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* 24px, 更圓潤 */
+            /* 強烈的光影效果 */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 40rem; /* 640px, 適中寬度 */
+            padding: 2rem; /* 32px, 更多內邊距 */
+            margin: 2rem auto;
+            /* 手機上的邊距 */
+            @media (max-width: 640px) {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+        }
+
+        /* * 視覺化版面設計 (高亮):
+         * 這是最強烈的視覺引導，使用強烈的外陰影和脈衝動畫。
+         */
+        .highlight {
+            border-width: 3px;
+            /* 強烈的光影效果 */
+            animation: pulse-shadow 1.2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+        }
+
+        /* * 視覺衝擊性 (動畫):
+         * 1. hole-pop-in: 鑄魂洞的彈入效果。
+         * 2. stamp-in: 品質徽章的蓋章效果。
+         * 3. pulse-shadow: 高亮洞的脈衝光暈。
+         * 4. text-pop: 判定文字的彈入效果。
+         */
+        @keyframes hole-pop-in {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .hole-pop-in {
+            animation: hole-pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+        }
+
+        @keyframes stamp-in {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            80% { transform: scale(1.1) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .stamp-in {
+            animation: stamp-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        /* 高亮的光影脈衝 (更強烈) */
+        @keyframes pulse-shadow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
+            50% { box-shadow: 0 0 25px 10px rgba(250, 204, 21, 0.3); }
+        }
+
+        @keyframes text-pop {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .text-pop {
+            animation: text-pop 0.3s ease-out;
+        }
+
+        /* * 品質徽章 (衝擊性):
+         * NEW: 不再是浮水印，而是主要元素。
+         * 移除了 position: absolute, opacity, z-index 等。
+         */
+        .quality-badge {
+            font-size: 10rem; /* 160px, 超大 */
+            font-weight: 800; /* Extra bold */
+            line-height: 1;
+            /* 強烈的文字陰影 */
+            text-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            /* 手機上縮小一點 */
+            @media (max-width: 640px) {
+                font-size: 8rem; /* 128px */
+            }
+        }
+        .quality-s { color: #f59e0b; } /* amber-500 */
+        .quality-a { color: #ec4899; } /* pink-500 */
+        .quality-b { color: #3b82f6; } /* blue-500 */
+        .quality-c { color: #6b7280; } /* gray-500 */
+
+        /* * 鑄魂洞樣式 (字大, 易讀):
+         * 增加高度和字體大小。
+         */
+        .hole-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 6rem; /* 96px, 更高 */
+            padding: 0.5rem;
+            border-radius: 1rem; /* 16px */
+            font-size: 1.125rem; /* 18px, 字大 */
+            font-weight: 700;
+            border-width: 3px;
+            color: white; /* 預設文字白色 */
+            position: relative;
+            overflow: hidden;
+            /* 內部光影，增加立體感 */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            /* 手機上縮小一點 */
+            @media (max-width: 640px) {
+                height: 5rem; /* 80px */
+                font-size: 1rem; /* 16px */
+            }
+        }
+        .hole-item.text-gray-900 {
+            color: #1f2937; /* 黃色背景配深色字 */
+            text-shadow: none;
+        }
+
+        /* * 按鈕樣式 (大, 易讀, 衝擊性):
+         * 增大字體和內邊距。
+         */
+        .btn-primary {
+            background-image: linear-gradient(to right, #4f46e5, #7c3aed); /* 漸層 */
+            color: white;
+            font-size: 1.25rem; /* 20px, 字大 */
+            font-weight: 700;
+            padding: 0.875rem 1.5rem; /* 14px 24px */
+            border-radius: 0.75rem; /* 12px */
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3), 0 2px 4px -1px rgba(79, 70, 229, 0.2);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px); /* 懸停時上浮 */
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4), 0 4px 6px -2px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-secondary {
+            background-color: #d1d5db; /* gray-300 */
+            color: #374151; /* gray-700 */
+            font-size: 1rem; /* 16px */
+            font-weight: 600;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 0.75rem; /* 12px */
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .btn-secondary:hover {
+            background-color: #b0b5bd; /* 變深 */
+            transform: translateY(-1px);
+        }
+
+        /* * 統計區塊標題 (字大, 易讀):
+         */
+        .section-title {
+            font-size: 1.5rem; /* 24px, 字大 */
+            font-weight: 800;
+            text-align: center;
+            color: #111827; /* gray-900 */
+            margin-bottom: 1rem;
+        }
+
+        /* * NEW: 倉儲分頁系統
+         */
+        .tab-button {
+            padding: 0.5rem 1rem;
+            font-size: 1.125rem; /* 18px, 字大 */
+            font-weight: 700;
+            color: #6b7280; /* gray-500 */
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            color: #4f46e5; /* indigo-600 */
+            border-bottom-color: #4f46e5;
+        }
+        .tab-panel {
+            display: none; /* 預設隱藏 */
+            padding-top: 1rem;
+        }
+        .tab-panel.active {
+            display: block; /* 顯示當前分頁 */
+            animation: text-pop 0.3s ease-out; /* 沿用彈入動畫 */
+        }
+
+
+        /* * NEW: 鑄魂紀錄 (倉儲) 面板:
+         * 低飽和度，面板特效。
+         */
+        .stats-stock-table {
+            width: 100%;
+            border-collapse: collapse; /* 邊框合併 */
+            table-layout: fixed; /* NEW: 固定表格寬度 */
+        }
+        .stats-stock-table th, .stats-stock-table td {
+            padding: 0.75rem 0.5rem; /* 12px, 減少左右 padding */
+            text-align: center;
+            font-size: 1.125rem; /* 18px, 字大 */
+            word-wrap: break-word; /* 換行 */
+            /* 手機上 */
+            @media (max-width: 640px) {
+                font-size: 0.875rem; /* 14px */
+                padding: 0.5rem 0.25rem; /* 8px, 減少左右 padding */
+            }
+        }
+        /* 表頭 (低飽和) */
+        .stats-stock-table th {
+            background-color: #e5e7eb; /* gray-200, 低飽和 */
+            color: #4b5563; /* gray-600 */
+            font-weight: 700;
+        }
+        /* 品質標籤 (S/A/B/C) 或 套裝標籤 */
+        .stats-stock-table td:first-child {
+            font-weight: 900;
+            font-size: 1.25rem; /* 20px */
+            width: 3.5rem; /* 稍微加寬 */
+            /* 手機上 */
+            @media (max-width: 640px) {
+                font-size: 0.875rem; /* 14px */
+                font-weight: 700;
+                width: 3rem; /* 縮回 */
+            }
+        }
+        /* NEW: 套裝統計表的第一欄 (文字) */
+        .type-stats-table td:first-child {
+            font-size: 1rem; /* 16px */
+            text-align: left;
+            padding-left: 0.5rem;
+            width: auto; /* 自動寬度 */
+            /* 手機上 */
+            @media (max-width: 640px) {
+                font-size: 0.875rem; /* 14px */
+            }
+        }
+
+        /* 統計數字 */
+        .stats-stock-table td {
+            font-weight: 600;
+            color: #374151; /* gray-700 */
+            min-width: 2.5rem; /* 保持寬度 */
+        }
+        /* 奇偶行背景 (面板特效) */
+        .stats-stock-table tr:nth-child(even) {
+            background-color: #f9fafb; /* gray-50 */
+        }
+        /* 不可能的儲存格 (低飽和) */
+        .stats-stock-table .impossible {
+            color: #d1d5db; /* gray-300 */
+            font-weight: 500;
+        }
+        /* 圓角 */
+        .stats-stock-table th:first-child { border-top-left-radius: 0.75rem; }
+        .stats-stock-table th:last-child { border-top-right-radius: 0.75rem; }
+        .stats-stock-table tr:last-child td:first-child { border-bottom-left-radius: 0.75rem; }
+        .stats-stock-table tr:last-child td:last-child { border-bottom-right-radius: 0.75rem; }
+
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- 左上角作者資訊 --><div class="author-watermark">
+        　作者：雷神之錘　蘋果咬一口
+    </div>
+
+    <!-- 
+      * 視覺化 APP 模組 (主容器):
+      * 採用 .main-card 樣式。
+    --><div class="main-card space-y-6">
+        
+        <!-- 標題與引導內容 (字大) --><div class="text-center">
+            <h1 class="text-4xl font-black text-gray-900">紋章鑄魂系統模擬</h1>
+            <p class="text-lg text-gray-500 mt-1">龍之谷 經典再現</p>
+        </div>
+
+        <!-- 
+          * 內容引導 (規則說明):
+          * 背景色調整，字體加大。
+        --><div class="bg-gray-50 p-5 rounded-xl text-base text-gray-600 space-y-2 border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">模擬規則</h3>
+            <p>1. 模擬品質 (<span class="text-amber-500 font-bold">S</span>/<span class="text-pink-500 font-bold">A</span>/<span class="text-blue-500 font-bold">B</span>/<span class="text-gray-500 font-bold">C</span>) 決定鑄魂洞數 (5/4/3/2)。</p>
+            <p>2. 洞數中 <span class="text-yellow-600 font-bold">數量最多</span> 的類型為「最終判定」。</p>
+            <p>3. 若數量相同 (例如 2/2)，則以 <span class="text-yellow-600 font-bold">最先出現</span> (第 1 洞 > 第 5 洞) 的類型為準。</p>
+        </div>
+
+        <!-- 
+          * 互動模組 (操作區):
+          * 全新排版，按鈕更突出。
+        --><div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <button id="roll-button" class="btn-primary w-full shadow-xl">
+                開始鑄魂
+            </button>
+            <button id="reset-button" class="btn-secondary w-full">
+                重置統計
+            </button>
+        </div>
+
+        <!-- 
+          * 視覺化版面設計 (主要結果區):
+          * NEW: 全新排版 (左: 品質, 右: 屬性)
+        --><div class="pt-4 h-36 relative flex items-center justify-start">
+            <!-- 品質徽章 (靠左) --><div id="quality-badge" class="quality-badge flex-shrink-0 w-40 text-center transition-opacity duration-500 opacity-0">
+                <!-- S, A, B, C will be injected here --></div>
+            
+            <!-- 判定結果 (靠右) --><div class="flex-grow pl-4 text-left">
+                <h3 id="summary-title" class="text-5xl sm:text-6xl font-black text-gray-900 transition-opacity duration-500 opacity-0">
+                    —
+                </h3>
+                <p id="summary-text" class="text-3xl text-yellow-500 font-bold transition-opacity duration-500 opacity-0">
+                    請點擊按鈕開始
+                </p>
+            </div>
+        </div>
+
+        <!-- 
+          * 視覺化版面設計 (結果展示區):
+          * 動態網格佈局。
+        --><div class="pt-4">
+            <div id="results-container" class="grid grid-cols-1 gap-4 text-center min-h-[6rem] items-center">
+                <!-- 初始提示文字 --><div class="h-24 flex items-center justify-center text-gray-400 text-xl font-medium">
+                    點擊「開始鑄魂」
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計成本 (排版調整, 字大) --><div class="bg-gray-50 p-5 rounded-xl border border-gray-200">
+            <h4 class="section-title">累計成本</h4>
+            <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                    <span class="block text-sm opacity-70">嘗試次數</span>
+                    <span id="total-attempts" class="text-2xl font-bold text-gray-800">0</span>
+                </div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                    <span class="block text-sm opacity-70">消耗聖水</span>
+                    <span id="total-holy-water" class="text-2xl font-bold text-gray-800">0</span>
+                </div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                    <span class="block text-sm opacity-70">消耗金幣</span>
+                    <span id="total-gold" class="text-2xl font-bold text-gray-800">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 
+          * NEW: 鑄魂紀錄 (倉儲) 面板 (含分頁)
+        --><div class="bg-white p-5 rounded-xl border border-gray-200 shadow-inner">
+            <h4 class="section-title">鑄魂紀錄 (倉儲)</h4>
+            
+            <!-- 分頁按鈕 --><div class="flex border-b border-gray-200">
+                <button id="tab-btn-quality" class="tab-button active">品質統計</button>
+                <button id="tab-btn-type" class="tab-button">套裝統計</button>
+            </div>
+
+            <!-- 分頁 1: 品質統計 --><div id="tab-panel-quality" class="tab-panel active">
+                <div class="overflow-x-auto">
+                    <table class="stats-stock-table quality-stats-table">
+                        <thead>
+                            <tr>
+                                <th>品質</th>
+                                <th>x2 相同</th>
+                                <th>x3 相同</th>
+                                <th>x4 相同</th>
+                                <th>x5 相同</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- S (5 洞) --><tr>
+                                <td class="quality-s">S</td>
+                                <td id="s-set-2">0</td>
+                                <td id="s-set-3">0</td>
+                                <td id="s-set-4">0</td>
+                                <td id="s-set-5">0</td>
+                            </tr>
+                            <!-- A (4 洞) --><tr>
+                                <td class="quality-a">A</td>
+                                <td id="a-set-2">0</td>
+                                <td id="a-set-3">0</td>
+                                <td id="a-set-4">0</td>
+                                <td class="impossible">—</td>
+                            </tr>
+                            <!-- B (3 洞) --><tr>
+                                <td class="quality-b">B</td>
+                                <td id="b-set-2">0</td>
+                                <td id="b-set-3">0</td>
+                                <td class="impossible">—</td>
+                                <td class="impossible">—</td>
+                            </tr>
+                            <!-- C (2 洞) --><tr>
+                                <td class="quality-c">C</td>
+                                <td id="c-set-2">0</td>
+                                <td class="impossible">—</td>
+                                <td class="impossible">—</td>
+                                <td class="impossible">—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 分頁 2: 套裝統計 --><div id="tab-panel-type" class="tab-panel">
+                <div class="overflow-x-auto">
+                    <table class="stats-stock-table type-stats-table">
+                        <thead>
+                            <tr>
+                                <th>套裝類型</th>
+                                <th>x2</th>
+                                <th>x3</th>
+                                <th>x4</th>
+                                <th>x5</th>
+                            </tr>
+                        </thead>
+                        <tbody id="type-stats-body">
+                            <!-- 7 種類型將由 JS 動態產生 --></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 
+          * 內容引導 (機率參考):
+          * 字體加大，排版調整。
+        --><div class="bg-gray-800 text-gray-300 p-5 rounded-xl text-base space-y-2">
+            <h4 class="text-lg font-bold text-white mb-2">機率參考 (原始 5 洞模型)</h4>
+            <p class="flex justify-between"><span>≥2 洞:</span> <span class="font-medium">~2.4736%</span></p>
+            <p class="flex justify-between"><span>≥3 洞:</span> <span class="font-medium">~0.04426%</span></p>
+            <p class="flex justify-between"><span>≥4 洞:</span> <span class="font-medium">~0.00105%</span></p>
+            <p class="flex justify-between"><span>=5 洞:</span> <span class="font-medium">~0.0000178%</span></p>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- 1. DOM 元素與常數定義 ---
+
+        // 核心設定：7 種類型
+        const POTENTIAL_TYPES = [
+            '水火魔', '光暗魔', '終極智', 
+            '水火物', '光暗物', '終極熊', '終極風'
+        ];
+
+        // 視覺化版面設計：為 7 種類型定義顏色 (漸層)
+        const TYPE_COLORS = {
+            '水火魔': 'bg-gradient-to-br from-cyan-500 to-cyan-700 border-cyan-400',       // 青藍
+            '光暗魔': 'bg-gradient-to-br from-purple-700 to-purple-900 border-purple-600',   // 暗紫
+            '終極智': 'bg-gradient-to-br from-pink-400 to-pink-600 border-pink-300',     // 粉紫色
+            '水火物': 'bg-gradient-to-br from-red-500 to-red-700 border-red-400',         // 紅
+            '光暗物': 'bg-gradient-to-br from-yellow-400 to-yellow-600 border-yellow-300 text-gray-900', // 黃色
+            '終極熊': 'bg-gradient-to-br from-orange-700 to-orange-900 border-orange-600',   // 土色 (用深橘)
+            '終極風': 'bg-gradient-to-br from-green-700 to-green-900 border-green-600',     // 暗綠
+        };
+
+        // 成本常數
+        const COST_PER_ROLL = {
+            holyWater: 3,
+            gold: 500
+        };
+
+        // 統計變數
+        let totalAttempts = 0;
+        let totalHolyWater = 0;
+        let totalGold = 0;
+
+        // NEW: 鑄魂紀錄 (倉儲) 變數 (品質統計)
+        let qualityStatisticsStock = {
+            S: { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
+            A: { setOf2: 0, setOf3: 0, setOf4: 0 },
+            B: { setOf2: 0, setOf3: 0 },
+            C: { setOf2: 0 }
+        };
+
+        // NEW: 鑄魂紀錄 (倉儲) 變數 (套裝統計)
+        let typeStatisticsStock = {};
+        POTENTIAL_TYPES.forEach(type => {
+            typeStatisticsStock[type] = { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 };
+        });
+
+
+        // DOM 元素獲取
+        const rollButton = document.getElementById('roll-button');
+        const resetButton = document.getElementById('reset-button');
+        const resultsContainer = document.getElementById('results-container');
+        const summaryTitle = document.getElementById('summary-title');
+        const summaryText = document.getElementById('summary-text');
+        const qualityBadgeEl = document.getElementById('quality-badge');
+        
+        // 成本元素
+        const totalAttemptsEl = document.getElementById('total-attempts');
+        const totalHolyWaterEl = document.getElementById('total-holy-water');
+        const totalGoldEl = document.getElementById('total-gold');
+
+        // NEW: 分頁元素
+        const tabBtnQuality = document.getElementById('tab-btn-quality');
+        const tabBtnType = document.getElementById('tab-btn-type');
+        const tabPanelQuality = document.getElementById('tab-panel-quality');
+        const tabPanelType = document.getElementById('tab-panel-type');
+
+        // NEW: 品質統計 (倉儲) 元素
+        const sSet2El = document.getElementById('s-set-2');
+        const sSet3El = document.getElementById('s-set-3');
+        const sSet4El = document.getElementById('s-set-4');
+        const sSet5El = document.getElementById('s-set-5');
+        const aSet2El = document.getElementById('a-set-2');
+        const aSet3El = document.getElementById('a-set-3');
+        const aSet4El = document.getElementById('a-set-4');
+        const bSet2El = document.getElementById('b-set-2');
+        const bSet3El = document.getElementById('b-set-3');
+        const cSet2El = document.getElementById('c-set-2');
+
+        // NEW: 套裝統計 (倉儲) 元素
+        const typeStatsBody = document.getElementById('type-stats-body');
+
+
+        // --- 2. 核心邏輯實現 ---
+
+        /**
+         * 根據機率隨機產生品質和洞數
+         * C (70%) = 2 洞, B (20%) = 3 洞, A (9%) = 4 洞, S (1%) = 5 洞
+         * @returns {object} { quality: 'S'|'A'|'B'|'C', numHoles: 5|4|3|2 }
+         */
+        function getQualityAndHoles() {
+            const roll = Math.random() * 100;
+            if (roll < 1) {       // 1%
+                return { quality: 'S', numHoles: 5 };
+            } else if (roll < 10) { // 9% (10 - 1)
+                return { quality: 'A', numHoles: 4 };
+            } else if (roll < 30) { // 20% (30 - 10)
+                return { quality: 'B', numHoles: 3 };
+            } else {                // 70% (100 - 30)
+                return { quality: 'C', numHoles: 2 };
+            }
+        }
+
+        /**
+         * 模擬一次鑄魂
+         * @returns {object} { results: string[], quality: string, numHoles: number }
+         */
+        function rollPotentials() {
+            // 步驟 1: 決定品質和洞數
+            const { quality, numHoles } = getQualityAndHoles();
+
+            // 步驟 2: 填滿結果 (只填有洞的)
+            const results = [];
+            for (let i = 0; i < numHoles; i++) {
+                const randomIndex = Math.floor(Math.random() * POTENTIAL_TYPES.length);
+                results.push(POTENTIAL_TYPES[randomIndex]);
+            }
+            
+            return { results, quality, numHoles };
+        }
+
+        /**
+         * 分析結果，找出主要的鑄魂類型
+         * 規則 1: 數量最多
+         * 規則 2: 數量相同，取 index 最小 (最先出現)
+         * @param {string[]} results - 鑄魂結果陣列
+         * @returns {object} { dominantType: string | null, count: number }
+         */
+        function analyzeResults(results) {
+            const counts = {};
+            const firstAppearance = {};
+
+            // 步驟 1：遍歷結果，計算「總數」和「首次出現位置」
+            results.forEach((type, index) => {
+                // 計算總數
+                counts[type] = (counts[type] || 0) + 1;
+                
+                // 記錄首次出現
+                if (firstAppearance[type] === undefined) {
+                    firstAppearance[type] = index;
+                }
+            });
+
+            // 步驟 2：找出主要類型
+            let dominantType = null;
+            let maxCount = 0;
+            let minIndex = Infinity;
+
+            for (const type of POTENTIAL_TYPES) {
+                const count = counts[type] || 0;
+                if (count > 0) {
+                    // 規則 1：數量最多
+                    if (count > maxCount) {
+                        maxCount = count;
+                        dominantType = type;
+                        minIndex = firstAppearance[type];
+                    } 
+                    // 規則 2：數量相同，比 index
+                    else if (count === maxCount) {
+                        if (firstAppearance[type] < minIndex) {
+                            dominantType = type;
+                            minIndex = firstAppearance[type];
+                        }
+                    }
+                }
+            }
+            
+            // 確保即使只有 1 洞 (不可能發生在 2 洞以上，但作為防呆) 也能被計算
+            if (dominantType === null && results.length > 0) {
+                 dominantType = results[0];
+                 maxCount = 1;
+            }
+
+            return { dominantType, count: maxCount };
+        }
+
+        // --- 3. UI 更新函數 ---
+
+        /**
+         * 更新 UI 介面以顯示當次結果
+         * @param {object} analysisData - 包含所有分析結果的物件
+         */
+        function updateUI({ dominantType, count, allResults, quality, numHoles }) {
+            
+            // 移除佔位符
+            const initialPlaceholder = resultsContainer.querySelector('.text-gray-400');
+            if (initialPlaceholder) initialPlaceholder.remove();
+
+            // 清空舊的結果
+            resultsContainer.innerHTML = '';
+            
+            // 步驟 1 - 設定動態網格佈局
+            resultsContainer.className = 'grid gap-4 text-center items-center'; // Base classes
+            if (numHoles === 2) {
+                resultsContainer.classList.add('grid-cols-2');
+            } else if (numHoles === 3) {
+                resultsContainer.classList.add('grid-cols-3');
+            } else if (numHoles === 4) {
+                resultsContainer.classList.add('grid-cols-2'); // 2x2 grid
+            } else if (numHoles === 5) {
+                // 手機上 3 欄，平板以上 5 欄
+                resultsContainer.classList.add('grid-cols-3', 'sm:grid-cols-5'); 
+            }
+
+            // 步驟 2：更新洞的視覺 (交錯動畫)
+            allResults.forEach((type, index) => {
+                const holeDiv = document.createElement('div');
+                const colorClasses = TYPE_COLORS[type];
+                const isDominant = (type === dominantType);
+                
+                holeDiv.className = `hole-item relative ${colorClasses}`;
+
+                const typeName = document.createElement('span');
+                typeName.className = "z-10"; 
+                typeName.textContent = type;
+                holeDiv.appendChild(typeName);
+
+                // 視覺引導：高亮被判定的主要類型
+                if (isDominant) {
+                    holeDiv.classList.add('highlight');
+                }
+
+                // 交錯彈入動畫
+                holeDiv.style.animationDelay = `${index * 0.05}s`;
+                holeDiv.classList.add('hole-pop-in');
+
+                resultsContainer.appendChild(holeDiv);
+            });
+
+            // 步驟 3：更新最終判定結果 (NEW: 版面重排)
+            if (count === 0) {
+                summaryTitle.textContent = '無有效鑄魂'; 
+                summaryText.textContent = '最終判定';
+            } else {
+                summaryTitle.textContent = `${dominantType} x ${count} 洞`;
+                summaryText.textContent = '最終判定';
+            }
+
+            // 步驟 4 - 更新品質徽章 (NEW: 版面重排)
+            qualityBadgeEl.textContent = quality;
+            qualityBadgeEl.className = `quality-badge flex-shrink-0 w-40 text-center stamp-in quality-${quality.toLowerCase()}`;
+            qualityBadgeEl.classList.remove('opacity-0'); // 顯示
+
+            // 讓結果文字彈入
+            summaryTitle.classList.add('text-pop');
+            summaryText.classList.add('text-pop');
+            summaryTitle.classList.remove('opacity-0');
+            summaryText.classList.remove('opacity-0');
+
+            // 步驟 5：更新按鈕文字 (引導使用者再次操作)
+            rollButton.textContent = '再次鑄魂';
+        }
+
+        /**
+         * 更新統計數據 (成本) 的 UI
+         */
+        function updateCostStatsUI() {
+            totalAttemptsEl.textContent = totalAttempts.toLocaleString();
+            totalHolyWaterEl.textContent = totalHolyWater.toLocaleString();
+            totalGoldEl.textContent = totalGold.toLocaleString();
+        }
+
+        /**
+         * NEW: 更新 "品質統計" (倉儲) 的 UI
+         */
+        function updateQualityStatisticsStockUI() {
+            // S (5 洞)
+            sSet2El.textContent = qualityStatisticsStock.S.setOf2.toLocaleString();
+            sSet3El.textContent = qualityStatisticsStock.S.setOf3.toLocaleString();
+            sSet4El.textContent = qualityStatisticsStock.S.setOf4.toLocaleString();
+            sSet5El.textContent = qualityStatisticsStock.S.setOf5.toLocaleString();
+            // A (4 洞)
+            aSet2El.textContent = qualityStatisticsStock.A.setOf2.toLocaleString();
+            aSet3El.textContent = qualityStatisticsStock.A.setOf3.toLocaleString();
+            aSet4El.textContent = qualityStatisticsStock.A.setOf4.toLocaleString();
+            // B (3 洞)
+            bSet2El.textContent = qualityStatisticsStock.B.setOf2.toLocaleString();
+            bSet3El.textContent = qualityStatisticsStock.B.setOf3.toLocaleString();
+            // C (2 洞)
+            cSet2El.textContent = qualityStatisticsStock.C.setOf2.toLocaleString();
+        }
+
+        /**
+         * NEW: 更新 "套裝統計" (倉儲) 的 UI
+         */
+        function updateTypeStatisticsStockUI() {
+            POTENTIAL_TYPES.forEach(type => {
+                const stats = typeStatisticsStock[type];
+                document.getElementById(`type-${type}-set2`).textContent = stats.setOf2.toLocaleString();
+                document.getElementById(`type-${type}-set3`).textContent = stats.setOf3.toLocaleString();
+                document.getElementById(`type-${type}-set4`).textContent = stats.setOf4.toLocaleString();
+                document.getElementById(`type-${type}-set5`).textContent = stats.setOf5.toLocaleString();
+            });
+        }
+        
+        /**
+         * NEW: 首次初始化 "套裝統計" 表格
+         */
+        function initializeTypeStatsTable() {
+            typeStatsBody.innerHTML = ''; // 清空
+            POTENTIAL_TYPES.forEach(type => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="font-bold text-left pl-2">${type}</td>
+                    <td id="type-${type}-set2">0</td>
+                    <td id="type-${type}-set3">0</td>
+                    <td id="type-${type}-set4">0</td>
+                    <td id="type-${type}-set5">0</td>
+                `;
+                typeStatsBody.appendChild(row);
+            });
+        }
+
+
+        // --- 4. 事件處理函數 ---
+
+        /**
+         * 處理「開始鑄魂」按鈕點擊
+         */
+        function handleRollClick() {
+            // 隱藏上一次的徽章和文字，準備動畫
+            qualityBadgeEl.classList.add('opacity-0');
+            summaryTitle.classList.add('opacity-0');
+            summaryText.classList.add('opacity-0');
+            // 移除彈入動畫 class，以便下次觸發
+            summaryTitle.classList.remove('text-pop');
+            summaryText.classList.remove('text-pop');
+            
+            // 禁用按鈕防止連點
+            rollButton.disabled = true;
+
+            // 累加成本
+            totalAttempts++;
+            totalHolyWater += COST_PER_ROLL.holyWater;
+            totalGold += COST_PER_ROLL.gold;
+
+            // 1. 模擬
+            const { results, quality, numHoles } = rollPotentials();
+            
+            // 2. 分析
+            const { dominantType, count } = analyzeResults(results);
+
+            // 3. NEW: 更新兩種鑄魂紀錄
+            if (count >= 2) {
+                const qualityKey = quality; // 'S', 'A', 'B', 'C'
+                const setKey = `setOf${count}`; // 'setOf2', 'setOf3', etc.
+                
+                // 3a. 更新品質統計
+                if (qualityStatisticsStock[qualityKey] && qualityStatisticsStock[qualityKey][setKey] !== undefined) {
+                    qualityStatisticsStock[qualityKey][setKey]++;
+                }
+                
+                // 3b. 更新套裝統計
+                if (dominantType && typeStatisticsStock[dominantType] && typeStatisticsStock[dominantType][setKey] !== undefined) {
+                    typeStatisticsStock[dominantType][setKey]++;
+                }
+            }
+            
+            // 4. 更新成本 UI
+            updateCostStatsUI();
+            
+            // 5. NEW: 更新兩種鑄魂紀錄 UI
+            updateQualityStatisticsStockUI();
+            updateTypeStatisticsStockUI();
+
+            // 6. 更新主要結果 UI (延遲一點點讓淡出效果先生效)
+            setTimeout(() => {
+                updateUI({ dominantType, count, allResults: results, quality, numHoles });
+                rollButton.disabled = false; // 恢復按鈕
+            }, 100); // 100ms 延遲
+        }
+
+        /**
+         * 處理「重置統計」按鈕點擊
+         */
+        function resetStats() {
+            // 重置所有變數
+            totalAttempts = 0;
+            totalHolyWater = 0;
+            totalGold = 0;
+            
+            // NEW: 重置品質統計
+            qualityStatisticsStock = {
+                S: { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 },
+                A: { setOf2: 0, setOf3: 0, setOf4: 0 },
+                B: { setOf2: 0, setOf3: 0 },
+                C: { setOf2: 0 }
+            };
+            
+            // NEW: 重置套裝統計
+            typeStatisticsStock = {};
+            POTENTIAL_TYPES.forEach(type => {
+                typeStatisticsStock[type] = { setOf2: 0, setOf3: 0, setOf4: 0, setOf5: 0 };
+            });
+
+            // 更新統計 UI
+            updateCostStatsUI();
+            updateQualityStatisticsStockUI(); // NEW
+            updateTypeStatisticsStockUI(); // NEW
+            
+            // 恢復初始 UI 狀態
+            rollButton.textContent = '開始鑄魂';
+            summaryTitle.textContent = '—';
+            summaryText.textContent = '請點擊按鈕開始';
+            summaryTitle.classList.add('opacity-0');
+            summaryText.classList.add('opacity-0');
+            qualityBadgeEl.classList.add('opacity-0');
+
+            // 清空結果
+            resultsContainer.innerHTML = `
+                <div class="h-24 flex items-center justify-center text-gray-400 text-xl font-medium">
+                    點擊「開始鑄魂」
+                </div>
+            `;
+            resultsContainer.className = 'grid grid-cols-1 gap-4 text-center min-h-[6rem] items-center';
+            
+            // 重設分頁到第一個
+            tabBtnQuality.click();
+        }
+
+        /**
+         * NEW: 處理分頁切換
+         */
+        function handleTabClick(event) {
+            // 移除所有按鈕的 active
+            tabBtnQuality.classList.remove('active');
+            tabBtnType.classList.remove('active');
+            // 隱藏所有面板
+            tabPanelQuality.classList.remove('active');
+            tabPanelType.classList.remove('active');
+
+            // 獲取點擊的按鈕
+            const clickedButton = event.currentTarget;
+            clickedButton.classList.add('active');
+
+            // 顯示對應的面板
+            if (clickedButton.id === 'tab-btn-quality') {
+                tabPanelQuality.classList.add('active');
+            } else if (clickedButton.id === 'tab-btn-type') {
+                tabPanelType.classList.add('active');
+            }
+        }
+
+        // --- 5. 啟動器 ---
+        rollButton.addEventListener('click', handleRollClick);
+        resetButton.addEventListener('click', resetStats);
+        
+        // NEW: 綁定分頁按鈕事件
+        tabBtnQuality.addEventListener('click', handleTabClick);
+        tabBtnType.addEventListener('click', handleTabClick);
+
+        // 頁面載入時
+        initializeTypeStatsTable(); // 產生套裝表格
+        updateQualityStatisticsStockUI(); // 初始化品質表格 (顯示 0)
+        updateTypeStatisticsStockUI(); // 初始化套裝表格 (顯示 0)
+
+    </script>
+</body>
+</html>
+
