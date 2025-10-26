@@ -356,10 +356,22 @@
 
         <!-- 
           * 互動模組 (操作區):
-          * 全新排版，按鈕更突出。
-        --><div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          * NEW: 改為 2x2 網格佈局。
+        --><div class="grid grid-cols-3 gap-4 pt-2">
             <button id="roll-button" class="btn-primary w-full shadow-xl">
-                開始鑄魂
+                鑄魂 x1
+            </button>
+            <button id="roll-10-button" class="btn-primary w-full">
+                鑄魂 x10
+            </button>
+            <button id="roll-100-button" class="btn-primary w-full">
+                鑄魂 x100
+            </button>
+            <button id="roll-1000-button" class="btn-primary w-full">
+                鑄魂 x1000
+            </button>
+            <button id="roll-10000-button" class="btn-primary w-full">
+                鑄魂 x10000
             </button>
             <button id="reset-button" class="btn-secondary w-full">
                 重置統計
@@ -402,7 +414,7 @@
                     <span id="total-attempts" class="text-2xl font-bold text-gray-800">0</span>
                 </div>
                 <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                    <span class="block text-sm opacity-70">消耗聖水</span>
+                    <span class="block text-sm opacity-70">消耗淨魂聖水</span>
                     <span id="total-holy-water" class="text-2xl font-bold text-gray-800">0</span>
                 </div>
                 <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
@@ -492,19 +504,7 @@
             </div>
         </div>
 
-        <!-- 
-          * 內容引導 (機率參考):
-          * * NEW: 依照使用者要求，此區塊已刪除。
-        -->
-        <!-- 
-        <div class="bg-gray-800 text-gray-300 p-5 rounded-xl text-base space-y-2">
-            <h4 class="text-lg font-bold text-white mb-2">機率參考 (原始 5 洞模型)</h4>
-            <p class="flex justify-between"><span>≥2 洞:</span> <span class="font-medium">~2.4736%</span></p>
-            <p class="flex justify-between"><span>≥3 洞:</span> <span class="font-medium">~0.04426%</span></p>
-            <p class="flex justify-between"><span>≥4 洞:</span> <span class="font-medium">~0.00105%</span></p>
-            <p class="flex justify-between"><span>=5 洞:</span> <span class="font-medium">~0.0000178%</span></p>
-        </div>
-        -->
+
     </div>
 
     <script type="module">
@@ -555,6 +555,10 @@
 
         // DOM 元素獲取
         const rollButton = document.getElementById('roll-button');
+        const roll10Button = document.getElementById('roll-10-button');
+        const roll100Button = document.getElementById('roll-100-button');
+        const roll1000Button = document.getElementById('roll-1000-button');
+        const roll10000Button = document.getElementById('roll-10000-button');
         const resetButton = document.getElementById('reset-button');
         const resultsContainer = document.getElementById('results-container');
         const summaryTitle = document.getElementById('summary-title');
@@ -596,18 +600,18 @@
 
         /**
          * 根據機率隨機產生品質和洞數
-         * C (70%) = 2 洞, B (20%) = 3 洞, A (9%) = 4 洞, S (1%) = 5 洞
+         * C (65%) = 2 洞, B (20%) = 3 洞, A (11%) = 4 洞, S (4%) = 5 洞
          * @returns {object} { quality: 'S'|'A'|'B'|'C', numHoles: 5|4|3|2 }
          */
         function getQualityAndHoles() {
             const roll = Math.random() * 100;
-            if (roll < 1) {       // 1%
+            if (roll < 4) {       // 4%
                 return { quality: 'S', numHoles: 5 };
-            } else if (roll < 10) { // 9% (10 - 1)
+            } else if (roll < 15) { // 11% (15 - 4)
                 return { quality: 'A', numHoles: 4 };
-            } else if (roll < 30) { // 20% (30 - 10)
+            } else if (roll < 35) { // 20% (35 - 15)
                 return { quality: 'B', numHoles: 3 };
-            } else {                // 70% (100 - 30)
+            } else {                // 65% (100 - 35)
                 return { quality: 'C', numHoles: 2 };
             }
         }
@@ -831,8 +835,10 @@
 
         /**
          * 處理「開始鑄魂」按鈕點擊
+         * NEW: 重構為可處理 x1, x10, x100
+         * @param {number} rollCount - 要執行的次數
          */
-        function handleRollClick() {
+        function handleMultiRollClick(rollCount) {
             // 隱藏上一次的徽章和文字，準備動畫
             qualityBadgeEl.classList.add('opacity-0');
             summaryTitle.classList.add('opacity-0');
@@ -843,51 +849,69 @@
             
             // 禁用按鈕防止連點
             rollButton.disabled = true;
+            roll10Button.disabled = true;
+            roll100Button.disabled = true;
+            roll1000Button.disabled = true;
+            roll10000Button.disabled = true;
 
-            // 累加成本
-            totalAttempts++;
-            totalHolyWater += COST_PER_ROLL.holyWater;
-            totalGold += COST_PER_ROLL.gold;
+            let lastRollData = null; // 只儲存最後一次的結果用於顯示
 
-            // 1. 模擬
-            const { results, quality, numHoles } = rollPotentials();
-            
-            // 2. 分析
-            const { dominantType, count } = analyzeResults(results);
+            for (let i = 0; i < rollCount; i++) {
+                // 累加成本
+                totalAttempts++;
+                totalHolyWater += COST_PER_ROLL.holyWater;
+                totalGold += COST_PER_ROLL.gold;
 
-            // 3. NEW: 更新兩種鑄魂紀錄
-            const qualityKey = quality; // 'S', 'A', 'B', 'C'
-
-            // 3a. 累加品質次數
-            if (qualityStatisticsStock[qualityKey]) {
-                qualityStatisticsStock[qualityKey].attempts++;
-            }
-
-            if (count >= 2) {
-                const setKey = `setOf${count}`; // 'setOf2', 'setOf3', etc.
+                // 1. 模擬
+                const { results, quality, numHoles } = rollPotentials();
                 
-                // 3b. 更新品質統計 (相同洞數)
-                if (qualityStatisticsStock[qualityKey] && qualityStatisticsStock[qualityKey][setKey] !== undefined) {
-                    qualityStatisticsStock[qualityKey][setKey]++;
+                // 2. 分析
+                const { dominantType, count } = analyzeResults(results);
+
+                // 3. NEW: 更新兩種鑄魂紀錄
+                const qualityKey = quality; // 'S', 'A', 'B', 'C'
+
+                // 3a. 累加品質次數
+                if (qualityStatisticsStock[qualityKey]) {
+                    qualityStatisticsStock[qualityKey].attempts++;
                 }
-                
-                // 3c. 更新套裝統計
-                if (dominantType && typeStatisticsStock[dominantType] && typeStatisticsStock[dominantType][setKey] !== undefined) {
-                    typeStatisticsStock[dominantType][setKey]++;
+
+                if (count >= 2) {
+                    const setKey = `setOf${count}`; // 'setOf2', 'setOf3', etc.
+                    
+                    // 3b. 更新品質統計 (相同洞數)
+                    if (qualityStatisticsStock[qualityKey] && qualityStatisticsStock[qualityKey][setKey] !== undefined) {
+                        qualityStatisticsStock[qualityKey][setKey]++;
+                    }
+                    
+                    // 3c. 更新套裝統計
+                    if (dominantType && typeStatisticsStock[dominantType] && typeStatisticsStock[dominantType][setKey] !== undefined) {
+                        typeStatisticsStock[dominantType][setKey]++;
+                    }
                 }
+
+                // 只儲存最後一筆結果
+                lastRollData = { dominantType, count, allResults: results, quality, numHoles };
             }
             
-            // 4. 更新成本 UI
+            // 4. 更新成本 UI (迴圈後)
             updateCostStatsUI();
             
-            // 5. NEW: 更新兩種鑄魂紀錄 UI
+            // 5. NEW: 更新兩種鑄魂紀錄 UI (迴圈後)
             updateQualityStatisticsStockUI();
             updateTypeStatisticsStockUI();
 
             // 6. 更新主要結果 UI (延遲一點點讓淡出效果先生效)
             setTimeout(() => {
-                updateUI({ dominantType, count, allResults: results, quality, numHoles });
-                rollButton.disabled = false; // 恢復按鈕
+                if (lastRollData) { // 確保有結果
+                    updateUI(lastRollData);
+                }
+                // 恢復按鈕
+                rollButton.disabled = false;
+                roll10Button.disabled = false;
+                roll100Button.disabled = false;
+                roll1000Button.disabled = false;
+                roll10000Button.disabled = false;
             }, 100); // 100ms 延遲
         }
 
@@ -963,7 +987,11 @@
         }
 
         // --- 5. 啟動器 ---
-        rollButton.addEventListener('click', handleRollClick);
+        rollButton.addEventListener('click', () => handleMultiRollClick(1));
+        roll10Button.addEventListener('click', () => handleMultiRollClick(10));
+        roll100Button.addEventListener('click', () => handleMultiRollClick(100));
+        roll1000Button.addEventListener('click', () => handleMultiRollClick(1000));
+        roll10000Button.addEventListener('click', () => handleMultiRollClick(10000));
         resetButton.addEventListener('click', resetStats);
         
         // NEW: 綁定分頁按鈕事件
@@ -978,6 +1006,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
